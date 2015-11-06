@@ -8,5 +8,6 @@ lazy val root = (project in file(".")).
   
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor" % "2.3.12",
-  "com.typesafe.akka" %% "akka-http-experimental" % "1.0"
+  "com.typesafe.akka" %% "akka-http-experimental" % "1.0",
+  "org.json4s" %% "json4s-native" % "3.2.11"
 )

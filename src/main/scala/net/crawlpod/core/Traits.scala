@@ -1,22 +1,33 @@
 package net.crawlpod.core
 
+import org.json4s.JsonAST.JObject
+
 /**
  * @author sakthipriyan
  */
-abstract class RawStore {
+
+trait Queue {
+  def enqueue(r:List[CrawlRequest])
+  def dequeue: CrawlRequest
+  def failed(req:CrawlRequest, res:CrawlResponse)
+  def size: Long
+  def completed : Long
+}
+
+trait RawStore {
   def store(id: String, r: CrawlResponse)
   def retrieve(id: String): CrawlResponse
 }
 
-abstract class RawStoreIndex {
+trait RawStoreIndex {
   def cache(id: String)
   def inCache(id: String): Boolean
   def count: Long
 }
 
-abstract class DocumentStore {
-  // TODO to appropriate json class (next 2 lines)
-  def write(json: List[String])
+trait DocumentStore {
+  def write(json: List[JObject])
+  def read(key:String) : JObject
   def count: Long
 }
 
@@ -25,6 +36,5 @@ trait Empty {
 }
 
 trait Shutdown {
-  
+  def shutdown
 }
-
