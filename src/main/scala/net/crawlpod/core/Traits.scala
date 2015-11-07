@@ -15,19 +15,14 @@ trait Queue {
 }
 
 trait RawStore {
-  def store(id: String, r: CrawlResponse)
-  def retrieve(id: String): CrawlResponse
-}
-
-trait RawStoreIndex {
-  def cache(id: String)
+  def put(id: String, r: CrawlResponse)
+  def get(id: String): Option[CrawlResponse]
   def inCache(id: String): Boolean
   def count: Long
 }
 
-trait DocumentStore {
+trait JsonStore {
   def write(json: List[JObject])
-  def read(key:String) : JObject
   def count: Long
 }
 

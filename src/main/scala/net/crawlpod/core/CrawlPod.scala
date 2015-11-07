@@ -8,6 +8,8 @@ import akka.actor.Props
  */
 object CrawlPod extends App {
   val system = ActorSystem("crawlpod")
-  val myActor = system.actorOf(Props[QueueActor], "queue")
+  val queue = system.actorOf(Props[QueueActor], "queue")
+  
+  queue  ! "hello"
   system.shutdown()
 }
