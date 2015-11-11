@@ -8,16 +8,15 @@ import org.json4s.JsonAST.JObject
 
 trait Queue {
   def enqueue(r:List[CrawlRequest])
-  def dequeue: CrawlRequest
+  def dequeue: Option[CrawlRequest]
   def failed(req:CrawlRequest, res:CrawlResponse)
   def size: Long
   def completed : Long
 }
 
 trait RawStore {
-  def put(id: String, r: CrawlResponse)
-  def get(id: String): Option[CrawlResponse]
-  def inCache(id: String): Boolean
+  def put(res: CrawlResponse)
+  def get(req: CrawlRequest): Option[CrawlResponse]
   def count: Long
 }
 
