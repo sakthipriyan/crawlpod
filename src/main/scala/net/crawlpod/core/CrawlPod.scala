@@ -3,10 +3,7 @@ package net.crawlpod.core
 import akka.actor.ActorSystem
 import akka.actor.Props
 import scala.concurrent.ExecutionContext.Implicits.global
-import net.crawlpod.external.Mongodb
-import net.crawlpod.external.MongodbQueue
-import net.crawlpod.external.MongodbJsonStore
-import net.crawlpod.external.MongodbRawStore
+import net.crawlpod.driver._
 import com.typesafe.config.ConfigFactory
 
 /**

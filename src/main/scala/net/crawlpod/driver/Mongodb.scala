@@ -1,4 +1,4 @@
-package net.crawlpod.external
+package net.crawlpod.driver
 
 import scala.collection.JavaConversions.asScalaBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -13,25 +13,13 @@ import net.crawlpod.core.JsonStore
 import net.crawlpod.core.Queue
 import net.crawlpod.core.RawStore
 
-import org.mongodb.scala.MongoClient
-import org.mongodb.scala.MongoDatabase
-import org.mongodb.scala.MongoCollection
+import org.mongodb.scala._
 import org.mongodb.scala.bson.Document
 
 /**
  * @author sakthipriyan
  */
 
-object Mongodb {
-  val config = ConfigFactory.load("mongodb")
-  val client = MongoClient(config.getString("mongodb.url"))
-  val database = client.getDatabase("mydb")
-  def collection(name: String) = database.getCollection(config.getString(name))
-  def shutdown = client.close
-  def test = {
-      
-  }
-}
 
 class MongodbQueue extends Queue {
   val queue = Mongodb.collection("mongodb.collection.queue")
@@ -39,9 +27,14 @@ class MongodbQueue extends Queue {
   override def enqueue(requests: List[CrawlRequest]) = {
     val req = requests.map(r => Document(r.toJsonString)).toSeq
     val completed = queue.insertMany(req)
-    
+    completed.subscribe(new Observer[Completed] {
+      override def onNext(result: Completed): Unit = println(s"onNext: $result")
+      override def onError(e: Throwable): Unit = println(s"onError: $e")
+      override def onComplete(): Unit = println("onComplete")
+    })
+    println("Test")
   }
-  
+
   override def dequeue: Option[CrawlRequest] = {
     Some(CrawlRequest("http://google.com", "net.crawlpod.extract.Google"))
   }
@@ -67,4 +60,12 @@ class MongodbJsonStore extends JsonStore {
   override def count: Long = 0
   override def empty = {}
   override def shutdown = Mongodb.shutdown
+}
+
+object Mongodb {
+  val config = ConfigFactory.load("mongodb")
+  val client = MongoClient(config.getString("mongodb.url"))
+  val database = client.getDatabase(config.getString("mongodb.database"))
+  def collection(name: String) = database.getCollection(config.getString(name))
+  def shutdown = client.close
 }

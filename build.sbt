@@ -14,8 +14,8 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-http-experimental" % "1.0",
   "org.json4s" %% "json4s-native" % "3.3.0",
   "org.jsoup" % "jsoup" % "1.8.3",
-  "org.mongodb.scala" %% "mongo-scala-driver" % "1.0.0"
-  
+  "org.mongodb.scala" %% "mongo-scala-driver" % "1.0.0",
+  "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 )
 
 net.virtualvoid.sbt.graph.Plugin.graphSettings

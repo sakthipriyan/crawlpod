@@ -1,9 +1,8 @@
 package net.crawlpod.core
 
 import org.json4s.JsonAST.JObject
-import net.crawlpod.external.MongodbQueue
-import net.crawlpod.external.MongodbJsonStore
-import net.crawlpod.external.MongodbRawStore
+
+import net.crawlpod.driver._
 
 /**
  * @author sakthipriyan
@@ -33,6 +32,7 @@ object JsonStore {
 trait Queue {
   def enqueue(r: List[CrawlRequest])
   def dequeue: Option[CrawlRequest]
+  
   def failed(req: CrawlRequest, res: CrawlResponse)
   def size: Long
   def completed: Long
