@@ -4,19 +4,12 @@ import scala.concurrent.Future
 import scala.concurrent.Promise
 
 import org.json4s.JsonAST.JObject
-import org.mongodb.scala.Completed
-import org.mongodb.scala.Document
-import org.mongodb.scala.MongoClient
-import org.mongodb.scala.Observer
+import org.mongodb.scala._
 import org.slf4j.LoggerFactory
 
 import com.typesafe.config.ConfigFactory
 
-import net.crawlpod.core.CrawlRequest
-import net.crawlpod.core.CrawlResponse
-import net.crawlpod.core.JsonStore
-import net.crawlpod.core.Queue
-import net.crawlpod.core.RawStore
+import net.crawlpod.core._
 
 /**
  * @author sakthipriyan
@@ -44,18 +37,12 @@ class MongodbQueue extends Queue {
   override def failed(req: CrawlRequest, res: CrawlResponse) = {}
 
   override def size: Future[Long] = {
-    val count = Promise[Long]
-    queue.count().subscribe(new Observer[Long] {
-      override def onNext(result: Long): Unit = {count.success(result)}
-      override def onError(e: Throwable): Unit = log.error("Error while inserting into queue", e)
-      override def onComplete(): Unit = log.debug("onComplete")
-    })
-    count.future
+    queue.count().head()
   }
 
   override def completed: Future[Long] = {
     val count = Promise[Long]
-    queue.count().subscribe(new Observer[Long] {
+    queue.count(Document("crawled"->true)).subscribe(new Observer[Long] {
       override def onNext(result: Long): Unit = { count.success(result) }
       override def onError(e: Throwable): Unit = log.error("Error while inserting into queue", e)
       override def onComplete(): Unit = log.debug("onComplete")
@@ -63,7 +50,10 @@ class MongodbQueue extends Queue {
     count.future
   }
 
-  override def empty = {}
+  override def empty = {
+    queue.drop().head
+    Unit
+  }
   override def shutdown = {
     Mongodb.shutdown
   }
