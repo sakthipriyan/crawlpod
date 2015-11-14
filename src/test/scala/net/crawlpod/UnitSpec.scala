@@ -5,6 +5,9 @@ package net.crawlpod
  */
 
 import org.scalatest._
+import com.typesafe.config.ConfigFactory
 
 abstract class UnitSpec extends WordSpec with Matchers with
-  OptionValues with Inside with Inspectors
+  OptionValues with Inside with Inspectors { 
+    val config = ConfigFactory.load("application-test")
+}

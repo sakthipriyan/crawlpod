@@ -1,8 +1,8 @@
 package net.crawlpod.core
 
 import org.json4s.JsonAST.JObject
-
 import net.crawlpod.driver._
+import scala.concurrent.Future
 
 /**
  * @author sakthipriyan
@@ -30,12 +30,11 @@ object JsonStore {
 }
 
 trait Queue {
-  def enqueue(r: List[CrawlRequest])
+  def enqueue(r: List[CrawlRequest]):Future[Unit]
   def dequeue: Option[CrawlRequest]
-  
   def failed(req: CrawlRequest, res: CrawlResponse)
-  def size: Long
-  def completed: Long
+  def size: Future[Long]
+  def completed: Future[Long]
   def empty: Unit
   def shutdown: Unit
 }
