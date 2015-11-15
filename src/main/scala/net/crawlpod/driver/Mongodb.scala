@@ -1,15 +1,16 @@
 package net.crawlpod.driver
 
-import scala.concurrent.Future
-import scala.concurrent.Promise
-
+import scala.concurrent.{ Future, Promise }
+import scala.util.{ Success, Failure }
 import org.json4s.JsonAST.JObject
 import org.mongodb.scala._
 import org.slf4j.LoggerFactory
-
 import com.typesafe.config.ConfigFactory
-
 import net.crawlpod.core._
+import org.mongodb.scala.bson.conversions.Bson
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.collection.JavaConversions._
+import org.mongodb.scala.Observer
 
 /**
  * @author sakthipriyan
@@ -17,45 +18,70 @@ import net.crawlpod.core._
 
 class MongodbQueue extends Queue {
 
-  val log = LoggerFactory.getLogger(getClass)
   val queue = Mongodb.collection("mongodb.collection.queue")
+  val failed = Mongodb.collection("mongodb.collection.failed")
+
+  val usedFalse = Document("used" -> false)
+  val usedTrue = Document("used" -> true)
+  val setUsedTrue = Document("$set" -> usedTrue)
 
   override def enqueue(requests: List[CrawlRequest]): Future[Unit] = {
-    val unit = Promise[Unit]
-    val req = requests.map { r => Document(r.toJsonString) + ("crawled" -> false, "queued" -> false) }.toSeq
-    val completed = queue.insertMany(req).subscribe(new Observer[Completed] {
-      override def onNext(result: Completed): Unit = unit.success(Unit)
-      override def onError(e: Throwable): Unit = unit.failure(e)
-      override def onComplete(): Unit = {}
+    val req = requests.map { r => Document(r.toJsonString) ++ usedFalse }.toSeq
+    queue.insertMany(req).head.map(a => Unit)
+  }
+
+  override def dequeue: Future[Option[CrawlRequest]] = {
+    val dequeue = Promise[Option[CrawlRequest]]
+    queue.findOneAndUpdate(usedFalse, setUsedTrue).subscribe(new Observer[Document]() {
+      override def onNext(doc: Document): Unit = dequeue.success(Some(parseCrawlRequest(doc)))
+      override def onError(e: Throwable): Unit = dequeue.failure(e)
+      override def onComplete(): Unit = if (!dequeue.isCompleted) dequeue.success(None)
     })
-    unit.future
+    dequeue.future
   }
 
-  override def dequeue: Option[CrawlRequest] = {
-    Some(CrawlRequest("http://google.com", "net.crawlpod.extract.Google"))
-  }
-  override def failed(req: CrawlRequest, res: CrawlResponse) = {}
+  override def queueSize: Future[Long] = queue.count.head
 
-  override def size: Future[Long] = {
-    queue.count().head()
-  }
+  override def doneSize: Future[Long] = queue.count(usedTrue).head
 
-  override def completed: Future[Long] = {
-    val count = Promise[Long]
-    queue.count(Document("crawled"->true)).subscribe(new Observer[Long] {
-      override def onNext(result: Long): Unit = { count.success(result) }
-      override def onError(e: Throwable): Unit = log.error("Error while inserting into queue", e)
-      override def onComplete(): Unit = log.debug("onComplete")
-    })
-    count.future
+  override def failed(r: CrawlRequest) = {
+    val request = Document(r.toJsonString)
+    failed.insertOne(request).head.map(a => Unit)
   }
+  override def failedSize: Future[Long] = failed.count.head
 
   override def empty = {
-    queue.drop().head
-    Unit
+    val result = Promise[Unit]
+    for {
+      q <- queue.deleteMany(Document()).head
+      f <- failed.deleteMany(Document()).head
+    } {
+      result.success(Unit)
+    }
+    result.future
   }
-  override def shutdown = {
-    Mongodb.shutdown
+
+  override def shutdown = Mongodb.shutdown
+
+  private def parseCrawlRequest(doc: Document) = {
+    val url = getString(doc, "url")
+    val extractor = getString(doc, "extractor")
+    val method = getString(doc, "method")
+    val headers = getOptMap(doc, "headers")
+    val passData = getOptMap(doc, "passData")
+    val requestBody = doc.get("requestBody") match {
+      case None    => None
+      case Some(b) => Some(b.asString.getValue)
+    }
+    val cache = doc.get("cache").get.asBoolean.getValue
+    CrawlRequest(url, extractor, method, headers, passData, requestBody, cache)
+  }
+
+  private def getString(doc: Document, key: String) = doc.get(key).get.asString.getValue
+
+  private def getOptMap(doc: Document, key: String) = doc.get(key) match {
+    case Some(map) => Some(map.asDocument().mapValues(v => v.asString.getValue).toMap)
+    case None      => None
   }
 }
 
@@ -90,6 +116,5 @@ object Mongodb {
         client.close
       }
     }
-
   }
 }

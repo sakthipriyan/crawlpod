@@ -45,11 +45,12 @@ case class CrawlRequest(
 case class CrawlResponse(
     status: Int,
     request: CrawlRequest,
-    headers: Map[String, List[String]],
-    body: String) {
-  def toDom = Jsoup.parse(body)
-  def toJson = parse(body).asInstanceOf[JObject]
-  def toXml = XML.loadString(body)
+    headers: Seq[(String, String)],
+    response: String) {
+  def toDom = Jsoup.parse(response)
+  def toJson = parse(response).asInstanceOf[JObject]
+  def toXml = XML.loadString(response)
+  
 }
 
 case class Extract(

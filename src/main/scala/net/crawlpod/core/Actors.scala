@@ -88,10 +88,10 @@ class QueueActor(queue: Queue) extends Actor with ActorLogging {
       log.info("{} crawl requests enqueued", e.requests.size)
     }
     case d: Dequeue => {
-      for (request <- queue.dequeue) {
+      /*for (request <- queue.dequeue) {
         val actor = if (request.cache) "../rawstore" else "../crawl"
         context.actorSelection(actor) ! request
-      }
+      }*/
 
       log.info("Dequeued {} crawl requests", d.count)
     }

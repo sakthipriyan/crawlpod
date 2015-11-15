@@ -31,11 +31,12 @@ object JsonStore {
 
 trait Queue {
   def enqueue(r: List[CrawlRequest]):Future[Unit]
-  def dequeue: Option[CrawlRequest]
-  def failed(req: CrawlRequest, res: CrawlResponse)
-  def size: Future[Long]
-  def completed: Future[Long]
-  def empty: Unit
+  def dequeue: Future[Option[CrawlRequest]]
+  def doneSize: Future[Long]
+  def queueSize: Future[Long]
+  def failed(req: CrawlRequest):Future[Unit]
+  def failedSize:Future[Long]
+  def empty: Future[Unit]
   def shutdown: Unit
 }
 
