@@ -27,19 +27,16 @@ case class CrawlRequest(
     requestBody: Option[String] = None,
     cache: Boolean = true) {
 
-  def toJsonString = {
-    compact(render(toJson))
-  }
+  def toJsonString = compact(render(toJson))
 
-  def toJson = {
-    ("url" -> url) ~
-      ("extractor" -> extractor) ~
-      ("method" -> method) ~
-      ("headers" -> headers) ~
-      ("passData" -> passData) ~
-      ("requestBody" -> requestBody) ~
-      ("cache" -> cache)
-  }
+  def toJson = ("url" -> url) ~
+    ("extractor" -> extractor) ~
+    ("method" -> method) ~
+    ("headers" -> headers) ~
+    ("requestBody" -> requestBody) ~
+    ("passData" -> passData) ~
+    ("cache" -> cache)
+
 }
 
 case class CrawlResponse(
@@ -48,15 +45,14 @@ case class CrawlResponse(
     headers: Map[String, List[String]],
     body: String,
     created: Long = System.currentTimeMillis,
-    timeTaken: Long = -1L) {
+    timeTaken: Int = -1) {
   def toDom = Jsoup.parse(body)
   def toJson = parse(body).asInstanceOf[JObject]
   def toXml = XML.loadString(body)
-  def toJsonString = compact(render(("status" -> status) ~
-    ("request" -> request.toJson) ~
-    ("headers" -> headers) ~
-    ("response" -> body) ~
-    ("created" -> created)))
+  def toJsonString = compact(render(("request" -> request.toJson) ~
+    ("status" -> status) ~ ("headers" -> headers) ~
+    ("response" -> body) ~ ("created" -> created) ~
+    ("timeTaken" -> timeTaken)))
 }
 
 case class Extract(
