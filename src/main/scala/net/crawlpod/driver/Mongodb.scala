@@ -74,13 +74,16 @@ class MongodbRawStore extends RawStore {
       ("_id" -> getId(res.request.url))).head.map(a => Unit)
   }
 
-  override def get(request: CrawlRequest): Future[Option[CrawlResponse]] = {
+  override def get(request: CrawlRequest, afterTs: Long = 0): Future[Option[CrawlResponse]] = {
     val dequeue = Promise[Option[CrawlResponse]]
-    raw.find(Document("_id" -> getId(request.url))).subscribe(new Observer[Document]() {
-      override def onNext(doc: Document): Unit = dequeue.success(Some(Mongodb.parseCrawlResponse(doc)))
-      override def onError(e: Throwable): Unit = dequeue.failure(e)
-      override def onComplete(): Unit = if (!dequeue.isCompleted) dequeue.success(None)
-    })
+    raw.find(Document(
+      "_id" -> getId(request.url),
+      "created" -> Document("$gt" -> afterTs)))
+      .subscribe(new Observer[Document]() {
+        override def onNext(doc: Document): Unit = dequeue.success(Some(Mongodb.parseCrawlResponse(doc)))
+        override def onError(e: Throwable): Unit = dequeue.failure(e)
+        override def onComplete(): Unit = if (!dequeue.isCompleted) dequeue.success(None)
+      })
     dequeue.future
   }
   override def count: Future[Long] = raw.count.head

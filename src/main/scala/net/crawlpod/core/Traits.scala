@@ -3,10 +3,15 @@ package net.crawlpod.core
 import org.json4s.JsonAST.JObject
 import net.crawlpod.driver._
 import scala.concurrent.Future
+import com.typesafe.config.ConfigFactory
 
 /**
  * @author sakthipriyan
  */
+
+object Config {
+  val cfg = ConfigFactory.load()
+}
 
 object Queue {
   def apply(name: String): Queue = name match {
@@ -30,26 +35,26 @@ object JsonStore {
 }
 
 trait Queue {
-  def enqueue(r: List[CrawlRequest]):Future[Unit]
+  def enqueue(r: List[CrawlRequest]): Future[Unit]
   def dequeue: Future[Option[CrawlRequest]]
   def doneSize: Future[Long]
   def queueSize: Future[Long]
-  def failed(req: CrawlRequest):Future[Unit]
-  def failedSize:Future[Long]
+  def failed(req: CrawlRequest): Future[Unit]
+  def failedSize: Future[Long]
   def empty: Future[Unit]
   def shutdown: Unit
 }
 
 trait RawStore {
-  def put(res: CrawlResponse):Future[Unit]
-  def get(req: CrawlRequest):Future[Option[CrawlResponse]]
+  def put(res: CrawlResponse): Future[Unit]
+  def get(req: CrawlRequest, afterTs: Long = 0): Future[Option[CrawlResponse]]
   def count: Future[Long]
   def empty: Future[Unit]
   def shutdown: Unit
 }
 
 trait JsonStore {
-  def write(json: List[JObject]):Future[Unit]
+  def write(json: List[JObject]): Future[Unit]
   def count: Future[Long]
   def empty: Future[Unit]
   def shutdown: Unit

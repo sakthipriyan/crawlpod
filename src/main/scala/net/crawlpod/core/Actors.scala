@@ -1,19 +1,19 @@
 package net.crawlpod.core
 
-import scala.concurrent.duration.DurationInt
-import scala.language.postfixOps
 import akka.actor.Actor
 import akka.actor.ActorLogging
 import akka.actor.ActorSelection.toScala
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.model.HttpResponse
+import akka.http.scaladsl.model.HttpResponse
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.Uri.apply
 import akka.pattern.pipe
 import akka.stream.scaladsl.ImplicitMaterializer
 import akka.util.ByteString
-import akka.http.scaladsl.model.HttpResponse
+import scala.util.Success
+import scala.util.Failure
 
 /**
  * @author sakthipriyan
@@ -32,13 +32,11 @@ class ControllerActor extends Actor with ActorLogging {
     case Tick => {
       system.scheduler.scheduleOnce(10000 millis, self, Tick)
       context.actorSelection("../queue") ! new Dequeue
-      log.info("received tick")
+      log.debug("Received Tick")
     }
-    case Stop => log.info("received unknown message")
-    case _    => log.warning("Received unknown message")
-
+    case Stop => log.debug("Received Stop")
+    case x    => log.warning("Received unknown message: {}", x)
   }
-
 }
 
 class CrawlActor extends Actor with ActorLogging with ImplicitMaterializer {
@@ -48,9 +46,9 @@ class CrawlActor extends Actor with ActorLogging with ImplicitMaterializer {
   val http = Http(context.system)
   def receive = {
     case r: CrawlRequest => {
-      log.info("Received Crawl Request: " + r)
+      log.debug("Received {}" + r)
       for (response <- http.singleRequest(toHttpRequest(r))) {
-        log.info("Response {}",response)
+        log.info("Response {}", response)
         context.actorSelection("../extractor") ! toCrawlResponse(r, response)
       }
     }
@@ -58,7 +56,7 @@ class CrawlActor extends Actor with ActorLogging with ImplicitMaterializer {
       log.info("Got response, body: " + entity.dataBytes.runFold(ByteString(""))(_ ++ _))
     case HttpResponse(code, _, _, _) =>
       log.info("Request failed, response code: " + code)
-    case _ => log.info("received unknown message")
+    case x => log.warning("Received unknown message: {}", x)
   }
 }
 
@@ -75,53 +73,71 @@ object CrawlActor {
 class ExtractActor extends Actor with ActorLogging {
   def receive = {
     case response: CrawlResponse => {
-      log.info("received message {}", response)
+      log.debug("Received {}", response)
     }
-    case _ => log.info("received unknown message")
+    case x => log.warning("Received unknown message: {}", x)
   }
 }
 
 class QueueActor(queue: Queue) extends Actor with ActorLogging {
+  import scala.concurrent.ExecutionContext.Implicits.global
+  val cacheEnabled = Config.cfg.getBoolean("app.cache.enabled")
   def receive = {
     case e: Enqueue => {
-      queue.enqueue(e.requests)
-      log.info("{} crawl requests enqueued", e.requests.size)
+      log.debug("Received {}", e)
+      queue.enqueue(e.requests) onFailure {
+        case t => log.error("Failed to enqueue {}", e.requests, t)
+      }
     }
     case d: Dequeue => {
-      /*for (request <- queue.dequeue) {
-        val actor = if (request.cache) "../rawstore" else "../crawl"
-        context.actorSelection(actor) ! request
-      }*/
-
-      log.info("Dequeued {} crawl requests", d.count)
+      log.debug("Received {}", d)
+      queue.dequeue onComplete {
+        case Success(reqOpt) => {
+          for (request <- reqOpt) {
+            val actor = if (cacheEnabled && request.cache) "../rawstore" else "../crawl"
+            context.actorSelection(actor) ! request
+          }
+        }
+        case Failure(t) => log.error("Failed to dequeue CrawlRequest", t)
+      }
     }
-    case _ => log.warning("received unknown message")
+    case x => log.warning("Received unknown message: {}", x)
   }
 }
 
 class RawStoreActor(rawStore: RawStore) extends Actor with ActorLogging {
+  import scala.concurrent.ExecutionContext.Implicits.global
+  val afterTs = Config.cfg.getLong("app.cache.ts")
   def receive = {
     case response: CrawlResponse => {
-      rawStore.put(response)
-      log.info("received RawStoreWrite, {}", response)
+      log.debug("Received {}", response)
+      rawStore.put(response).onFailure {
+        case t => log.error("Failed to store {}", response, t)
+      }
     }
     case request: CrawlRequest => {
-      rawStore.get(request) match {
-        case Some(response) => context.actorSelection("../extractor") ! response
-        case None           => context.actorSelection("../crawler") ! request
+      log.debug("Received {}", request)
+      rawStore.get(request, afterTs) onComplete {
+        case Success(response) => response match {
+          case Some(response) => context.actorSelection("../extractor") ! response
+          case None           => context.actorSelection("../crawler") ! request
+        }
+        case Failure(t) => log.error("Failed to retrieve response for {}", request, t)
       }
-      log.info("Received CrawlRequest, {}", request)
     }
-    case _ => log.warning("Received unknown message")
+    case x => log.warning("Received unknown message: {}", x)
   }
 }
 
 class JsonStoreActor(jsonStore: JsonStore) extends Actor with ActorLogging {
+  import scala.concurrent.ExecutionContext.Implicits.global
   def receive = {
     case w: JsonWrite => {
-      jsonStore.write(w.list)
-      log.info("Json write received, {}", w)
+      log.debug("Received {}", w)
+      jsonStore.write(w.list).onFailure {
+        case t => log.error("Failed to store json {}", w.list, t)
+      }
     }
-    case _ => log.warning("Received unknown message {}")
+    case x => log.warning("Received unknown message: {}", x)
   }
 }

@@ -10,7 +10,7 @@ import org.json4s.native.JsonMethods._
 import org.jsoup.Jsoup
 
 case class Enqueue(requests: List[CrawlRequest])
-case class Dequeue(count: Int = 1)
+case class Dequeue()
 
 case class JsonWrite(list: List[JObject])
 

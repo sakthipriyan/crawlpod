@@ -63,6 +63,15 @@ class RawStoreSpec extends UnitSpec {
         }
       }
     }
+
+    "get with future cache ts" should {
+      "return None" in {
+        whenReady(raw.get(request, System.currentTimeMillis)) { r =>
+          assert(r.isEmpty)
+        }
+      }
+    }
+
   }
 
 }
