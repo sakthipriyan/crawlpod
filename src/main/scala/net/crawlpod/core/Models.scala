@@ -47,7 +47,8 @@ case class CrawlResponse(
     request: CrawlRequest,
     headers: Seq[(String, String)],
     response: String,
-    created: Long = System.currentTimeMillis) {
+    created: Long = System.currentTimeMillis,
+    responseTime:Long = -1L) {
   def toDom = Jsoup.parse(response)
   def toJson = parse(response).asInstanceOf[JObject]
   def toXml = XML.loadString(response)

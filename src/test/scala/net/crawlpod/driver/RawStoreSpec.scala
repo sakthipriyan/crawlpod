@@ -15,7 +15,6 @@ import net.crawlpod.core.CrawlRequest
 class RawStoreSpec extends UnitSpec {
 
   val raw = RawStore(config.getString("crawlpod.provider.rawstore"))
-  implicit val defaultPatience = PatienceConfig(timeout = Span(5, Minutes), interval = Span(500, Millis))
 
   /*  class MongodbRawStore extends RawStore {
   override def put(res: CrawlResponse) = {}

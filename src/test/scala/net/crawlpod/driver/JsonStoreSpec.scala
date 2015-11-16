@@ -22,11 +22,6 @@ import org.json4s.native.JsonMethods._
 class JsonStoreSpec extends UnitSpec {
 
   val json = JsonStore(config.getString("crawlpod.provider.jsonstore"))
-  implicit val defaultPatience = PatienceConfig(timeout = Span(5, Minutes), interval = Span(500, Millis))
-/*trait JsonStore {
-  def write(json: List[JObject]):Future[Unit]
-}
-*/
   "JsonStore" when {
     "emptied" should {
       "succeed" in {

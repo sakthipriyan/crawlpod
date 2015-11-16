@@ -4,6 +4,7 @@ import org.json4s.JsonAST.JObject
 import net.crawlpod.driver._
 import scala.concurrent.Future
 import com.typesafe.config.ConfigFactory
+import net.crawlpod.driver.DispatchHttp
 
 /**
  * @author sakthipriyan
@@ -21,16 +22,23 @@ object Queue {
 }
 
 object RawStore {
-  def apply(name: String): MongodbRawStore = name match {
+  def apply(name: String): RawStore = name match {
     case "MongodbRawStore" => new MongodbRawStore
     case _                 => throw new RuntimeException(s"Invalid provider name for the raw store $name")
   }
 }
 
 object JsonStore {
-  def apply(name: String): MongodbJsonStore = name match {
+  def apply(name: String): JsonStore = name match {
     case "MongodbJsonStore" => new MongodbJsonStore
     case _                  => throw new RuntimeException(s"Invalid provider name for the json store $name")
+  }
+}
+
+object Http {
+  def apply(name: String): Http = name match {
+    case "DispatchHttp" => new DispatchHttp
+    case _              => throw new RuntimeException(s"Invalid provider name for the http $name")
   }
 }
 
@@ -58,4 +66,8 @@ trait JsonStore {
   def count: Future[Long]
   def empty: Future[Unit]
   def shutdown: Unit
+}
+
+trait Http {
+  def crawl(request: CrawlRequest): Future[CrawlResponse]
 }

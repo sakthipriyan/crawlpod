@@ -10,19 +10,22 @@ import com.typesafe.config.ConfigFactory
  * @author sakthipriyan
  */
 object CrawlPod extends App {
-  val config = ConfigFactory.load()
+
   val system = ActorSystem("crawlpod")
   val controller = system.actorOf(Props(classOf[ControllerActor]), "controller")
-  val crawler = system.actorOf(Props(classOf[CrawlActor]), "crawler")
   val extractor = system.actorOf(Props(classOf[ExtractActor]), "extractor")
+
+  val crawler = system.actorOf(Props(classOf[HttpActor],
+    Http(Config.cfg.getString("crawlpod.provider.http"))), "http")
+
   val queue = system.actorOf(Props(classOf[QueueActor],
-    Queue(config.getString("crawlpod.provider.queue"))), "queue")
-    
+    Queue(Config.cfg.getString("crawlpod.provider.queue"))), "queue")
+
   val rawStore = system.actorOf(Props(classOf[RawStoreActor],
-    RawStore(config.getString("crawlpod.provider.rawstore"))), "rawstore")
-    
+    RawStore(Config.cfg.getString("crawlpod.provider.rawstore"))), "rawstore")
+
   val jsonStore = system.actorOf(Props(classOf[JsonStoreActor],
-    JsonStore(config.getString("crawlpod.provider.jsonstore"))), "jsonstore")
-    
+    JsonStore(Config.cfg.getString("crawlpod.provider.jsonstore"))), "jsonstore")
+
   controller ! Tick
 }

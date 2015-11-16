@@ -16,7 +16,6 @@ import org.scalatest.time.Millis
 class QueueSpec extends UnitSpec {
 
   val queue = Queue(config.getString("crawlpod.provider.queue"))
-  implicit val defaultPatience = PatienceConfig(timeout = Span(5, Minutes), interval = Span(500, Millis))
 
   "Queue" when {
     "cleared" should {

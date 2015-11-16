@@ -7,14 +7,12 @@ lazy val root = (project in file(".")).
   )
 
 libraryDependencies ++= Seq(
-  "org.slf4j" % "slf4j-api" % "1.7.13",
   "ch.qos.logback" % "logback-classic" % "1.1.3",
-  "ch.qos.logback" % "logback-core" % "1.1.3",
   "com.typesafe.akka" %% "akka-actor" % "2.4.0",
-  "com.typesafe.akka" %% "akka-http-experimental" % "1.0",
   "org.json4s" %% "json4s-native" % "3.3.0",
   "org.jsoup" % "jsoup" % "1.8.3",
   "org.mongodb.scala" %% "mongo-scala-driver" % "1.0.0",
+  "net.databinder.dispatch" %% "dispatch-core" % "0.11.2",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 )
 
