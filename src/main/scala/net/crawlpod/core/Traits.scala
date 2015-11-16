@@ -41,16 +41,16 @@ trait Queue {
 }
 
 trait RawStore {
-  def put(res: CrawlResponse)
-  def get(req: CrawlRequest): Option[CrawlResponse]
-  def count: Long
-  def empty: Unit
+  def put(res: CrawlResponse):Future[Unit]
+  def get(req: CrawlRequest):Future[Option[CrawlResponse]]
+  def count: Future[Long]
+  def empty: Future[Unit]
   def shutdown: Unit
 }
 
 trait JsonStore {
-  def write(json: List[JObject])
-  def count: Long
-  def empty: Unit
+  def write(json: List[JObject]):Future[Unit]
+  def count: Future[Long]
+  def empty: Future[Unit]
   def shutdown: Unit
 }

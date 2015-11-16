@@ -11,6 +11,8 @@ import org.mongodb.scala.bson.conversions.Bson
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConversions._
 import org.mongodb.scala.Observer
+import org.json4s.native.JsonMethods._
+import java.net.URI
 
 /**
  * @author sakthipriyan
@@ -33,7 +35,7 @@ class MongodbQueue extends Queue {
   override def dequeue: Future[Option[CrawlRequest]] = {
     val dequeue = Promise[Option[CrawlRequest]]
     queue.findOneAndUpdate(usedFalse, setUsedTrue).subscribe(new Observer[Document]() {
-      override def onNext(doc: Document): Unit = dequeue.success(Some(parseCrawlRequest(doc)))
+      override def onNext(doc: Document): Unit = dequeue.success(Some(Mongodb.parseCrawlRequest(doc)))
       override def onError(e: Throwable): Unit = dequeue.failure(e)
       override def onComplete(): Unit = if (!dequeue.isCompleted) dequeue.success(None)
     })
@@ -53,8 +55,8 @@ class MongodbQueue extends Queue {
   override def empty = {
     val result = Promise[Unit]
     for {
-      q <- queue.deleteMany(Document()).head
-      f <- failed.deleteMany(Document()).head
+      q <- Mongodb.empty(queue)
+      f <- Mongodb.empty(failed)
     } {
       result.success(Unit)
     }
@@ -62,8 +64,92 @@ class MongodbQueue extends Queue {
   }
 
   override def shutdown = Mongodb.shutdown
+}
 
-  private def parseCrawlRequest(doc: Document) = {
+class MongodbRawStore extends RawStore {
+  val raw = Mongodb.collection("mongodb.collection.rawstore")
+
+  override def put(res: CrawlResponse): Future[Unit] = {
+    raw.insertOne(Document(res.toJsonString) +
+      ("_id" -> getId(res.request.url))).head.map(a => Unit)
+  }
+
+  override def get(request: CrawlRequest): Future[Option[CrawlResponse]] = {
+    val dequeue = Promise[Option[CrawlResponse]]
+    raw.find(Document("_id" -> getId(request.url))).subscribe(new Observer[Document]() {
+      override def onNext(doc: Document): Unit = dequeue.success(Some(Mongodb.parseCrawlResponse(doc)))
+      override def onError(e: Throwable): Unit = dequeue.failure(e)
+      override def onComplete(): Unit = if (!dequeue.isCompleted) dequeue.success(None)
+    })
+    dequeue.future
+  }
+  override def count: Future[Long] = raw.count.head
+  override def empty: Future[Unit] = Mongodb.empty(raw)
+  override def shutdown = Mongodb.shutdown
+
+  private def getId(url: String) = {
+    val uri = new URI(url)
+    val hash = md5(if (uri.getQuery != null) s"${uri.getPath}?${uri.getQuery}" else uri.getPath)
+    s"${uri.getHost}/$hash"
+  }
+  private def md5(text: String): String = {
+    import java.security.MessageDigest
+    val digest = MessageDigest.getInstance("MD5")
+    digest.digest(text.getBytes).map("%02x".format(_)).mkString
+  }
+}
+
+class MongodbJsonStore extends JsonStore {
+  val json = Mongodb.collection("mongodb.collection.jsonstore")
+  override def write(jsons: List[JObject]) = {
+    val req = jsons.map { json => Document(compact(render(json))) }.toSeq
+    json.insertMany(req).head.map(a => Unit)
+  }
+  override def count: Future[Long] = json.count.head
+  override def empty = Mongodb.empty(json)
+  override def shutdown = Mongodb.shutdown
+}
+
+object Mongodb {
+
+  val config = ConfigFactory.load()
+  val client = MongoClient(config.getString("mongodb.url"))
+  val database = client.getDatabase(config.getString("mongodb.database"))
+  var shutdownInitiated = false
+
+  def collection(name: String) = database.getCollection(config.getString(name))
+
+  def shutdown = {
+    this.synchronized {
+      if (!shutdownInitiated) {
+        shutdownInitiated = true
+        Thread.sleep(1000)
+        client.close
+      }
+    }
+  }
+
+  def empty(collection: MongoCollection[Document]): Future[Unit] = {
+    val result = Promise[Unit]
+    for (q <- collection.deleteMany(Document()).head) {
+      result.success(Unit)
+    }
+    result.future
+  }
+
+  def parseCrawlResponse(doc: Document) = {
+    val status = doc.get("status").get.asInt32().getValue
+    val request = parseCrawlRequest(Document(doc.get("request").get.asDocument()))
+    val headers = for {
+      a <- doc.get("headers").get.asArray()
+      b <- a.asDocument().entrySet()
+    } yield (b.getKey -> b.getValue.asString.getValue)
+    val response = getString(doc, "response")
+    val created = doc.get("created").get.asInt64().getValue
+    CrawlResponse(status, request, headers.seq, response, created)
+  }
+
+  def parseCrawlRequest(doc: Document) = {
     val url = getString(doc, "url")
     val extractor = getString(doc, "extractor")
     val method = getString(doc, "method")
@@ -82,39 +168,5 @@ class MongodbQueue extends Queue {
   private def getOptMap(doc: Document, key: String) = doc.get(key) match {
     case Some(map) => Some(map.asDocument().mapValues(v => v.asString.getValue).toMap)
     case None      => None
-  }
-}
-
-class MongodbRawStore extends RawStore {
-  //val queue = Mongodb.collection("mongodb.collection.raw")
-  override def put(res: CrawlResponse) = {}
-  override def get(req: CrawlRequest): Option[CrawlResponse] = None
-  override def count: Long = 0
-  override def empty: Unit = {} //queue.remove(null, null, false)
-  override def shutdown = Mongodb.shutdown
-}
-
-class MongodbJsonStore extends JsonStore {
-  //val queue = Mongodb.collection("mongodb.collection.json")
-  override def write(json: List[JObject]) = {}
-  override def count: Long = 0
-  override def empty = {}
-  override def shutdown = Mongodb.shutdown
-}
-
-object Mongodb {
-  val config = ConfigFactory.load()
-  val client = MongoClient(config.getString("mongodb.url"))
-  val database = client.getDatabase(config.getString("mongodb.database"))
-  var shutdownInitiated = false
-  def collection(name: String) = database.getCollection(config.getString(name))
-  def shutdown = {
-    this.synchronized {
-      if (!shutdownInitiated) {
-        shutdownInitiated = true
-        Thread.sleep(1000)
-        client.close
-      }
-    }
   }
 }
