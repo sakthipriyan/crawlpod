@@ -43,19 +43,19 @@ case class CrawlRequest(
 }
 
 case class CrawlResponse(
-    status: Int,
     request: CrawlRequest,
-    headers: Seq[(String, String)],
-    response: String,
+    status: Int,
+    headers: Map[String, List[String]],
+    body: String,
     created: Long = System.currentTimeMillis,
-    responseTime:Long = -1L) {
-  def toDom = Jsoup.parse(response)
-  def toJson = parse(response).asInstanceOf[JObject]
-  def toXml = XML.loadString(response)
+    timeTaken: Long = -1L) {
+  def toDom = Jsoup.parse(body)
+  def toJson = parse(body).asInstanceOf[JObject]
+  def toXml = XML.loadString(body)
   def toJsonString = compact(render(("status" -> status) ~
     ("request" -> request.toJson) ~
     ("headers" -> headers) ~
-    ("response" -> response) ~
+    ("response" -> body) ~
     ("created" -> created)))
 }
 

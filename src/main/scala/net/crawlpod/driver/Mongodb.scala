@@ -144,12 +144,11 @@ object Mongodb {
     val status = doc.get("status").get.asInt32().getValue
     val request = parseCrawlRequest(Document(doc.get("request").get.asDocument()))
     val headers = for {
-      a <- doc.get("headers").get.asArray()
-      b <- a.asDocument().entrySet()
-    } yield (b.getKey -> b.getValue.asString.getValue)
+      a <- doc.get("headers").get.asDocument().entrySet()
+    } yield (a.getKey -> a.getValue.asArray().map(b => b.asString().getValue).toList)
     val response = getString(doc, "response")
     val created = doc.get("created").get.asInt64().getValue
-    CrawlResponse(status, request, headers.seq, response, created)
+    CrawlResponse(request, status, headers.toMap, response, created)
   }
 
   def parseCrawlRequest(doc: Document) = {

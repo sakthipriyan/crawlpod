@@ -36,8 +36,8 @@ class RawStoreSpec extends UnitSpec {
         }
       }
     }
-    val request = new CrawlRequest("http://google.com/", "net.crawlpod.extract.Google")
-    val response = CrawlResponse(200, request, Seq(("Cookie" -> "Hello")), "Response body")
+    val request = CrawlRequest("http://google.com/", "net.crawlpod.extract.Google")
+    val response = CrawlResponse(request, 200, Map("Cookie" -> List("Test")), "Response body")
     "put" should {
       "succeed" in {
         whenReady(raw.put(response)) {
