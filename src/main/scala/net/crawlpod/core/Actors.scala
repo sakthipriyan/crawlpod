@@ -35,9 +35,12 @@ class HttpActor(http: Http) extends Actor with ActorLogging {
   import scala.concurrent.ExecutionContext.Implicits.global
   def receive = {
     case request: CrawlRequest => {
-      log.debug("Received {}" + request)
+      log.debug("Received {}", request)
       http.crawl(request) onComplete {
-        case Success(response) => context.actorSelection("../extractor") ! response
+        case Success(response) => {
+          context.actorSelection("../extractor") ! response
+          context.actorSelection("../rawstore") ! response
+        }
         case Failure(t)        => log.error("Failed to get response for {}", request, t)
       }
     }
@@ -95,7 +98,7 @@ class RawStoreActor(rawStore: RawStore) extends Actor with ActorLogging {
       rawStore.get(request, afterTs) onComplete {
         case Success(response) => response match {
           case Some(response) => context.actorSelection("../extractor") ! response
-          case None           => context.actorSelection("../crawler") ! request
+          case None           => context.actorSelection("../http") ! request
         }
         case Failure(t) => log.error("Failed to retrieve response for {}", request, t)
       }
