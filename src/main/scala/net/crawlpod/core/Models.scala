@@ -10,13 +10,14 @@ import org.json4s.native.JsonMethods._
 import org.jsoup.Jsoup
 
 case class Enqueue(requests: List[CrawlRequest])
-case class Dequeue()
-
 case class JsonWrite(list: List[JObject])
+case class Failed(request:CrawlRequest)
 
 case object Start
 case object Stop
 case object Tick
+case object Dequeue
+
 
 case class CrawlRequest(
     url: String,

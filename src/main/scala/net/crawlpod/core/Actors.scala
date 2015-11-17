@@ -7,6 +7,7 @@ import akka.pattern.pipe
 import akka.util.ByteString
 import scala.util.Success
 import scala.util.Failure
+import scala.concurrent.Future
 
 /**
  * @author sakthipriyan
@@ -23,7 +24,7 @@ class ControllerActor extends Actor with ActorLogging {
   override def receive = {
     case Tick => {
       system.scheduler.scheduleOnce(10000 millis, self, Tick)
-      context.actorSelection("../queue") ! new Dequeue
+      context.actorSelection("../queue") ! Dequeue
       log.debug("Received Tick")
     }
     case Stop => log.debug("Received Stop")
@@ -41,7 +42,10 @@ class HttpActor(http: Http) extends Actor with ActorLogging {
           context.actorSelection("../extractor") ! response
           context.actorSelection("../rawstore") ! response
         }
-        case Failure(t)        => log.error("Failed to get response for {}", request, t)
+        case Failure(t) => {
+          log.error("Failed to get response for {}", request, t)
+          context.actorSelection("../queue") ! Failed(request)
+        }
       }
     }
     case x => log.warning("Received unknown message: {}", x)
@@ -49,11 +53,35 @@ class HttpActor(http: Http) extends Actor with ActorLogging {
 }
 
 class ExtractActor extends Actor with ActorLogging {
+  import scala.concurrent.ExecutionContext.Implicits.global
   def receive = {
     case response: CrawlResponse => {
       log.debug("Received {}", response)
+      extract(response) onComplete {
+        case Success(extract) => {
+          context.actorSelection("../queue") ! Enqueue(extract.requests)
+          context.actorSelection("../jsonstore") ! JsonWrite(extract.documents)
+        }
+        case Failure(t) => {
+          log.error("Failed to dequeue CrawlRequest", t)
+          context.actorSelection("../queue") ! Failed(response.request)
+        }
+      }
     }
     case x => log.warning("Received unknown message: {}", x)
+  }
+
+  def extract(response: CrawlResponse) = {
+    Future {
+      val ext = response.request.extractor
+      val lastIndex = ext.lastIndexOf(".")
+      val className = ext.substring(0, lastIndex)
+      val methodName = ext.substring(lastIndex + 1, ext.length)
+      val clazz = Class.forName(className)
+      val obj = clazz.newInstance
+      val method = clazz.getDeclaredMethod(methodName, response.getClass)
+      method.invoke(obj, response).asInstanceOf[Extract]
+    }
   }
 }
 
@@ -67,8 +95,8 @@ class QueueActor(queue: Queue) extends Actor with ActorLogging {
         case t => log.error("Failed to enqueue {}", e.requests, t)
       }
     }
-    case d: Dequeue => {
-      log.debug("Received {}", d)
+    case Dequeue => {
+      log.debug("Received Dequeue")
       queue.dequeue onComplete {
         case Success(reqOpt) => {
           for (request <- reqOpt) {
@@ -79,6 +107,14 @@ class QueueActor(queue: Queue) extends Actor with ActorLogging {
         case Failure(t) => log.error("Failed to dequeue CrawlRequest", t)
       }
     }
+
+    case f: Failed => {
+      log.debug("Received {}", f)
+      queue.failed(f.request) onFailure {
+        case t => log.error("Failed to enqueue {}", f.request, t)
+      }
+    }
+
     case x => log.warning("Received unknown message: {}", x)
   }
 }
