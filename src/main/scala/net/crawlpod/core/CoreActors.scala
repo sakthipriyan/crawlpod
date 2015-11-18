@@ -31,7 +31,6 @@ class HttpActor(http: Http) extends Actor with ActorLogging {
         }
       }
     }
-    case x => log.warning("Received unknown message: {}", x)
   }
 }
 
@@ -56,7 +55,6 @@ class ExtractActor extends Actor with ActorLogging {
       }
       context.actorSelection("../requeststore") ! MarkProcessed(response.request)
     }
-    case x => log.warning("Received unknown message: {}", x)
   }
 
   def extract(response: CrawlResponse) = {
@@ -100,8 +98,6 @@ class QueueActor(queue: Queue) extends Actor with ActorLogging {
         case t => log.error("Failed to enqueue {}", f.request, t)
       }
     }
-
-    case x => log.warning("Received unknown message: {}", x)
   }
 }
 
@@ -125,7 +121,6 @@ class RawStoreActor(rawStore: RawStore) extends Actor with ActorLogging {
         case Failure(t) => log.error("Failed to retrieve response for {}", request, t)
       }
     }
-    case x => log.warning("Received unknown message: {}", x)
   }
 }
 
@@ -138,7 +133,6 @@ class JsonStoreActor(jsonStore: JsonStore) extends Actor with ActorLogging {
         case t => log.error("Failed to store json {}", w.list, t)
       }
     }
-    case x => log.warning("Received unknown message: {}", x)
   }
 }
 
@@ -162,6 +156,5 @@ class RequestStoreActor(requestStore: RequestStore) extends Actor with ActorLogg
         case Failure(t) => log.error("Failed to retrieve response for {}", request, t)
       }
     }
-    case x => log.warning("Received unknown message: {}", x)
   }
 }

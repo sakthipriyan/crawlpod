@@ -19,6 +19,5 @@ class StatsActor(queue: Queue, requestStore: RequestStore, rawStore: RawStore, j
       rawStore.count
       jsonStore.count
     }
-    case x => log.warning("Received unknown message: {}", x)
   }
 }

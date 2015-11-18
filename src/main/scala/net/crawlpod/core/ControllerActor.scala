@@ -30,6 +30,5 @@ class ControllerActor extends Actor with ActorLogging {
 
     }
     case Stop => log.debug("Received Stop")
-    case x    => log.warning("Received unknown message: {}", x)
   }
 }
