@@ -8,6 +8,9 @@ import akka.util.ByteString
 import scala.util.Success
 import scala.util.Failure
 import scala.concurrent.Future
+import akka.actor.Cancellable
+import net.crawlpod.util.ConfigUtil
+import ConfigUtil._
 
 /**
  * @author sakthipriyan
@@ -17,15 +20,20 @@ class ControllerActor extends Actor with ActorLogging {
   import context._
   import scala.language.postfixOps
 
-  override def preStart() = system.scheduler.scheduleOnce(500 millis, self, Tick)
+  override def preStart() = system.scheduler.scheduleOnce(5 seconds, self, Tick)
 
   override def postRestart(reason: Throwable) = {}
 
+  override def postStop(): Unit = scheduler.cancel()
+
+  private var scheduler: Cancellable = system.scheduler.scheduleOnce(1 minute, self, Tick)
   override def receive = {
     case Tick => {
-      system.scheduler.scheduleOnce(10000 millis, self, Tick)
-      context.actorSelection("../queue") ! Dequeue
       log.debug("Received Tick")
+      scheduler.cancel()
+      scheduler = system.scheduler.scheduleOnce(1 minute, self, Tick)
+      context.actorSelection("../queue") ! Dequeue
+
     }
     case Stop => log.debug("Received Stop")
     case x    => log.warning("Received unknown message: {}", x)
@@ -59,14 +67,19 @@ class ExtractActor extends Actor with ActorLogging {
       log.debug("Received {}", response)
       extract(response) onComplete {
         case Success(extract) => {
-          context.actorSelection("../queue") ! Enqueue(extract.requests)
-          context.actorSelection("../jsonstore") ! JsonWrite(extract.documents)
+          context.actorSelection("../controller") ! Tick
+          if (!extract.requests.isEmpty)
+            context.actorSelection("../queue") ! Enqueue(extract.requests)
+          if (!extract.documents.isEmpty)
+            context.actorSelection("../jsonstore") ! JsonWrite(extract.documents)
         }
         case Failure(t) => {
-          log.error("Failed to dequeue CrawlRequest", t)
+          log.error("Failed to extract CrawlRequest", t)
+          context.actorSelection("../controller") ! Tick
           context.actorSelection("../queue") ! Failed(response.request)
         }
       }
+      context.actorSelection("../requeststore") ! MarkProcessed(response.request)
     }
     case x => log.warning("Received unknown message: {}", x)
   }
@@ -87,7 +100,6 @@ class ExtractActor extends Actor with ActorLogging {
 
 class QueueActor(queue: Queue) extends Actor with ActorLogging {
   import scala.concurrent.ExecutionContext.Implicits.global
-  val cacheEnabled = Config.cfg.getBoolean("app.cache.enabled")
   def receive = {
     case e: Enqueue => {
       log.debug("Received {}", e)
@@ -100,8 +112,7 @@ class QueueActor(queue: Queue) extends Actor with ActorLogging {
       queue.dequeue onComplete {
         case Success(reqOpt) => {
           for (request <- reqOpt) {
-            val actor = if (cacheEnabled && request.cache) "../rawstore" else "../http"
-            context.actorSelection(actor) ! request
+            context.actorSelection("../requeststore") ! IsProcessed(request)
           }
         }
         case Failure(t) => log.error("Failed to dequeue CrawlRequest", t)
@@ -121,7 +132,7 @@ class QueueActor(queue: Queue) extends Actor with ActorLogging {
 
 class RawStoreActor(rawStore: RawStore) extends Actor with ActorLogging {
   import scala.concurrent.ExecutionContext.Implicits.global
-  val afterTs = Config.cfg.getLong("app.cache.ts")
+
   def receive = {
     case response: CrawlResponse => {
       log.debug("Received {}", response)
@@ -131,7 +142,7 @@ class RawStoreActor(rawStore: RawStore) extends Actor with ActorLogging {
     }
     case request: CrawlRequest => {
       log.debug("Received {}", request)
-      rawStore.get(request, afterTs) onComplete {
+      rawStore.get(request) onComplete {
         case Success(response) => response match {
           case Some(response) => context.actorSelection("../extractor") ! response
           case None           => context.actorSelection("../http") ! request
@@ -150,6 +161,30 @@ class JsonStoreActor(jsonStore: JsonStore) extends Actor with ActorLogging {
       log.debug("Received {}", w)
       jsonStore.write(w.list).onFailure {
         case t => log.error("Failed to store json {}", w.list, t)
+      }
+    }
+    case x => log.warning("Received unknown message: {}", x)
+  }
+}
+
+class RequestStoreActor(requestStore: RequestStore) extends Actor with ActorLogging {
+  import scala.concurrent.ExecutionContext.Implicits.global
+  def receive = {
+    case MarkProcessed(request) => {
+      log.debug("Received MarkProcessed for {}", request)
+      requestStore.setProcessed(request) onFailure {
+        case t => log.error("Failed to MarkProcessed {}", request, t)
+      }
+    }
+    case IsProcessed(request) => {
+      log.debug("Received IsProcessed for {}", request)
+      requestStore.isProcessed(request, afterTs) onComplete {
+        case Success(true) => log.debug("Skipping already processed {}", request)
+        case Success(false) => {
+          val actor = if (isCacheEnabled && request.cache) "../rawstore" else "../http"
+          context.actorSelection(actor) ! request
+        }
+        case Failure(t) => log.error("Failed to retrieve response for {}", request, t)
       }
     }
     case x => log.warning("Received unknown message: {}", x)

@@ -4,6 +4,7 @@ import scala.concurrent.{ Future, Promise }
 import scala.util.{ Success, Failure }
 import org.json4s.JsonAST.JObject
 import org.mongodb.scala._
+import org.mongodb.scala.model.UpdateOptions
 import org.slf4j.LoggerFactory
 import com.typesafe.config.ConfigFactory
 import net.crawlpod.core._
@@ -66,19 +67,40 @@ class MongodbQueue extends Queue {
   override def shutdown = Mongodb.shutdown
 }
 
+class MongodbRequestStore extends RequestStore {
+  val requestStore = Mongodb.collection("mongodb.collection.requeststore")
+  override def setProcessed(request: CrawlRequest, ts: Long = System.currentTimeMillis): Future[Unit] = {
+    requestStore.updateOne(
+      Document("_id" -> request.id),
+      Document("$set" -> Document("processed" -> ts)),
+      new UpdateOptions().upsert(true)).head().map { s => Unit }
+  }
+  override def isProcessed(request: CrawlRequest, afterTs: Long = 0): Future[Boolean] = {
+    val boolean = Promise[Boolean]
+    requestStore.find(Document("_id" -> request.id, "processed" -> Document("$gt" -> afterTs))).
+      subscribe(new Observer[Document]() {
+        override def onNext(doc: Document): Unit = boolean.success(true)
+        override def onError(e: Throwable): Unit = boolean.failure(e)
+        override def onComplete(): Unit = if (!boolean.isCompleted) boolean.success(false)
+      })
+    boolean.future
+  }
+  override def count: Future[Long] = requestStore.count.head
+  override def empty: Future[Unit] = Mongodb.empty(requestStore)
+  override def shutdown: Unit = Mongodb.shutdown
+}
+
 class MongodbRawStore extends RawStore {
   val raw = Mongodb.collection("mongodb.collection.rawstore")
 
   override def put(res: CrawlResponse): Future[Unit] = {
     raw.insertOne(Document(res.toJsonString) +
-      ("_id" -> getId(res.request.url))).head.map(a => Unit)
+      ("_id" -> res.request.id)).head.map(a => Unit)
   }
 
-  override def get(request: CrawlRequest, afterTs: Long = 0): Future[Option[CrawlResponse]] = {
+  override def get(request: CrawlRequest): Future[Option[CrawlResponse]] = {
     val dequeue = Promise[Option[CrawlResponse]]
-    raw.find(Document(
-      "_id" -> getId(request.url),
-      "created" -> Document("$gt" -> afterTs)))
+    raw.find(Document("_id" -> request.id))
       .subscribe(new Observer[Document]() {
         override def onNext(doc: Document): Unit = dequeue.success(Some(Mongodb.parseCrawlResponse(doc)))
         override def onError(e: Throwable): Unit = dequeue.failure(e)
@@ -90,16 +112,6 @@ class MongodbRawStore extends RawStore {
   override def empty: Future[Unit] = Mongodb.empty(raw)
   override def shutdown = Mongodb.shutdown
 
-  private def getId(url: String) = {
-    val uri = new URI(url)
-    val hash = md5(if (uri.getQuery != null) s"${uri.getPath}?${uri.getQuery}" else uri.getPath)
-    s"${uri.getHost}/$hash"
-  }
-  private def md5(text: String): String = {
-    import java.security.MessageDigest
-    val digest = MessageDigest.getInstance("MD5")
-    digest.digest(text.getBytes).map("%02x".format(_)).mkString
-  }
 }
 
 class MongodbJsonStore extends JsonStore {

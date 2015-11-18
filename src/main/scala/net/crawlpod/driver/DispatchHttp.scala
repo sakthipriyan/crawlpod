@@ -25,8 +25,8 @@ class DispatchHttp extends Http {
         val headers = (for {
           header <- response.getHeaders.entrySet
         } yield (header.getKey, header.getValue.toList)).toMap
-        val timeTaken = System.currentTimeMillis - start
-        crawlResponse.success(CrawlResponse(request, response.getStatusCode, headers, response.getResponseBody, timeTaken))
+        val timeTaken = (System.currentTimeMillis - start).toInt
+        crawlResponse.success(CrawlResponse(request, response.getStatusCode, headers, response.getResponseBody, timeTaken = timeTaken))
       }
     }
     crawlResponse.future

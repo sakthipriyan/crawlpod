@@ -5,6 +5,7 @@ import akka.actor.Props
 import scala.concurrent.ExecutionContext.Implicits.global
 import net.crawlpod.driver._
 import com.typesafe.config.ConfigFactory
+import net.crawlpod.util.ConfigUtil._
 
 /**
  * @author sakthipriyan
@@ -16,16 +17,19 @@ object CrawlPod extends App {
   val extractor = system.actorOf(Props(classOf[ExtractActor]), "extractor")
 
   val crawler = system.actorOf(Props(classOf[HttpActor],
-    Http(Config.cfg.getString("crawlpod.provider.http"))), "http")
+    Http(httpProvider)), "http")
 
   val queue = system.actorOf(Props(classOf[QueueActor],
-    Queue(Config.cfg.getString("crawlpod.provider.queue"))), "queue")
+    Queue(queueProvider)), "queue")
 
   val rawStore = system.actorOf(Props(classOf[RawStoreActor],
-    RawStore(Config.cfg.getString("crawlpod.provider.rawstore"))), "rawstore")
+    RawStore(rawStoreProvider)), "rawstore")
 
   val jsonStore = system.actorOf(Props(classOf[JsonStoreActor],
-    JsonStore(Config.cfg.getString("crawlpod.provider.jsonstore"))), "jsonstore")
+    JsonStore(jsonStoreProvider)), "jsonstore")
+
+  val requestStore = system.actorOf(Props(classOf[RequestStoreActor],
+    RequestStore(requestStoreProvider)), "requeststore")
 
   controller ! Tick
 }

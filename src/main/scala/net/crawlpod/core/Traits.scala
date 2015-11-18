@@ -10,10 +10,6 @@ import net.crawlpod.driver.DispatchHttp
  * @author sakthipriyan
  */
 
-object Config {
-  val cfg = ConfigFactory.load()
-}
-
 object Queue {
   def apply(name: String): Queue = name match {
     case "MongodbQueue" => new MongodbQueue
@@ -38,7 +34,14 @@ object JsonStore {
 object Http {
   def apply(name: String): Http = name match {
     case "DispatchHttp" => new DispatchHttp
-    case _              => throw new RuntimeException(s"Invalid provider name for the http $name")
+    case _              => throw new RuntimeException(s"Invalid provider name for the Http $name")
+  }
+}
+
+object RequestStore {
+  def apply(name: String): RequestStore = name match {
+    case "MongodbRequestStore" => new MongodbRequestStore
+    case _              => throw new RuntimeException(s"Invalid provider name for the ExtractStore $name")
   }
 }
 
@@ -55,7 +58,15 @@ trait Queue {
 
 trait RawStore {
   def put(res: CrawlResponse): Future[Unit]
-  def get(req: CrawlRequest, afterTs: Long = 0): Future[Option[CrawlResponse]]
+  def get(req: CrawlRequest): Future[Option[CrawlResponse]]
+  def count: Future[Long]
+  def empty: Future[Unit]
+  def shutdown: Unit
+}
+
+trait RequestStore {
+  def setProcessed(request: CrawlRequest, ts:Long = System.currentTimeMillis):Future[Unit]
+  def isProcessed(request: CrawlRequest, afterTs: Long = 0): Future[Boolean]
   def count: Future[Long]
   def empty: Future[Unit]
   def shutdown: Unit

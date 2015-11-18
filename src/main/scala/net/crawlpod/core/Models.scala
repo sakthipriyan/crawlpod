@@ -1,23 +1,25 @@
 package net.crawlpod.core
 
 import scala.xml.XML
-
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.JsonAST._
 import org.json4s.native.JsonMethods._
-
 import org.jsoup.Jsoup
+import java.net.URI
+import net.crawlpod.util.CryptoUtil
 
 case class Enqueue(requests: List[CrawlRequest])
 case class JsonWrite(list: List[JObject])
-case class Failed(request:CrawlRequest)
+case class Failed(request: CrawlRequest)
+case class MarkProcessed(request: CrawlRequest)
+case class IsProcessed(request: CrawlRequest)
+
 
 case object Start
 case object Stop
 case object Tick
 case object Dequeue
-
 
 case class CrawlRequest(
     url: String,
@@ -38,6 +40,21 @@ case class CrawlRequest(
     ("passData" -> passData) ~
     ("cache" -> cache)
 
+  lazy val id = {
+    val uri = new URI(url)
+    val sb = new scala.collection.mutable.StringBuilder
+    sb ++= uri.getPath
+    if (uri.getQuery != null) {
+      sb ++= "?"
+      sb ++= uri.getQuery
+    }
+    for (body <- requestBody) {
+      sb ++= body
+    }
+    val hash = CryptoUtil.md5(sb.toString)
+    s"${uri.getHost}/$hash"
+  }
+
 }
 
 case class CrawlResponse(
@@ -54,6 +71,11 @@ case class CrawlResponse(
     ("status" -> status) ~ ("headers" -> headers) ~
     ("response" -> body) ~ ("created" -> created) ~
     ("timeTaken" -> timeTaken)))
+    
+  override def toString = {
+    val sizeSuffix = if(body.length > 10) (10,"...") else (body.length,"") 
+    s"CrawlResponse($request,$status,$headers,${body.substring(sizeSuffix._1)}${sizeSuffix._2},$created,$timeTaken)"
+  }
 }
 
 case class Extract(

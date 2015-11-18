@@ -16,11 +16,6 @@ class RawStoreSpec extends UnitSpec {
 
   val raw = RawStore(config.getString("crawlpod.provider.rawstore"))
 
-  /*  class MongodbRawStore extends RawStore {
-  override def put(res: CrawlResponse) = {}
-  override def get(req: CrawlRequest): Option[CrawlResponse] = None
-}
-*/
   "RawStore" when {
     "emptied" should {
       "succeed" in {
@@ -62,15 +57,5 @@ class RawStoreSpec extends UnitSpec {
         }
       }
     }
-
-    "get with future cache ts" should {
-      "return None" in {
-        whenReady(raw.get(request, System.currentTimeMillis)) { r =>
-          assert(r.isEmpty)
-        }
-      }
-    }
-
   }
-
 }
