@@ -13,12 +13,12 @@ case class Enqueue(requests: List[CrawlRequest])
 case class JsonWrite(list: List[JObject])
 case class Failed(request: CrawlRequest)
 case class MarkProcessed(request: CrawlRequest)
-case class IsProcessed(request: CrawlRequest)
-
+case class Process(request: CrawlRequest)
 
 case object Start
 case object Stop
 case object Tick
+case object Stats
 case object Dequeue
 
 case class CrawlRequest(
@@ -74,7 +74,7 @@ case class CrawlResponse(
     
   override def toString = {
     val sizeSuffix = if(body.length > 10) (10,"...") else (body.length,"") 
-    s"CrawlResponse($request,$status,$headers,${body.substring(sizeSuffix._1)}${sizeSuffix._2},$created,$timeTaken)"
+    s"CrawlResponse($request,$status,$headers,${body.substring(0,sizeSuffix._1)}${sizeSuffix._2},$created,$timeTaken)"
   }
 }
 

@@ -11,6 +11,7 @@ import org.scalatest.time.Minutes
 import org.scalatest.time.Millis
 import org.scalatest.time.Span
 
+//FlatSpec with Matchers
 abstract class UnitSpec extends WordSpec with Matchers with
   OptionValues with Inside with Inspectors with ScalaFutures  {
   implicit val defaultPatience = PatienceConfig(timeout = Span(5, Minutes), interval = Span(500, Millis))

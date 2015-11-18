@@ -13,23 +13,20 @@ import net.crawlpod.util.ConfigUtil._
 object CrawlPod extends App {
 
   val system = ActorSystem("crawlpod")
-  val controller = system.actorOf(Props(classOf[ControllerActor]), "controller")
-  val extractor = system.actorOf(Props(classOf[ExtractActor]), "extractor")
+  
+  val queue = Queue(queueProvider)
+  val requestStore = RequestStore(requestStoreProvider)
+  val rawStore = RawStore(rawStoreProvider)
+  val http = Http(httpProvider)
+  val jsonStore = JsonStore(jsonStoreProvider)
+  
+  val controllerActor = system.actorOf(Props(classOf[ControllerActor]), "controller")
 
-  val crawler = system.actorOf(Props(classOf[HttpActor],
-    Http(httpProvider)), "http")
-
-  val queue = system.actorOf(Props(classOf[QueueActor],
-    Queue(queueProvider)), "queue")
-
-  val rawStore = system.actorOf(Props(classOf[RawStoreActor],
-    RawStore(rawStoreProvider)), "rawstore")
-
-  val jsonStore = system.actorOf(Props(classOf[JsonStoreActor],
-    JsonStore(jsonStoreProvider)), "jsonstore")
-
-  val requestStore = system.actorOf(Props(classOf[RequestStoreActor],
-    RequestStore(requestStoreProvider)), "requeststore")
-
-  controller ! Tick
+  val queueActor = system.actorOf(Props(classOf[QueueActor], queue), "queue")
+  val requestStoreActor = system.actorOf(Props(classOf[RequestStoreActor], requestStore), "requeststore")
+  val rawStoreActor = system.actorOf(Props(classOf[RawStoreActor], rawStore), "rawstore")
+  val httpActor = system.actorOf(Props(classOf[HttpActor], http), "http")
+  val extractorActor = system.actorOf(Props(classOf[ExtractActor]), "extractor")  
+  val jsonStoreActor = system.actorOf(Props(classOf[JsonStoreActor], jsonStore), "jsonstore")
+  val statsActor = system.actorOf(Props(classOf[StatsActor], queue, requestStore, rawStore, http, jsonStore), "stats")
 }

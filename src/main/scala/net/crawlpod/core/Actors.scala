@@ -9,36 +9,11 @@ import scala.util.Success
 import scala.util.Failure
 import scala.concurrent.Future
 import akka.actor.Cancellable
-import net.crawlpod.util.ConfigUtil
-import ConfigUtil._
+import net.crawlpod.util.ConfigUtil._
 
 /**
  * @author sakthipriyan
  */
-class ControllerActor extends Actor with ActorLogging {
-  import scala.concurrent.duration._
-  import context._
-  import scala.language.postfixOps
-
-  override def preStart() = system.scheduler.scheduleOnce(5 seconds, self, Tick)
-
-  override def postRestart(reason: Throwable) = {}
-
-  override def postStop(): Unit = scheduler.cancel()
-
-  private var scheduler: Cancellable = system.scheduler.scheduleOnce(1 minute, self, Tick)
-  override def receive = {
-    case Tick => {
-      log.debug("Received Tick")
-      scheduler.cancel()
-      scheduler = system.scheduler.scheduleOnce(1 minute, self, Tick)
-      context.actorSelection("../queue") ! Dequeue
-
-    }
-    case Stop => log.debug("Received Stop")
-    case x    => log.warning("Received unknown message: {}", x)
-  }
-}
 
 class HttpActor(http: Http) extends Actor with ActorLogging {
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -112,7 +87,7 @@ class QueueActor(queue: Queue) extends Actor with ActorLogging {
       queue.dequeue onComplete {
         case Success(reqOpt) => {
           for (request <- reqOpt) {
-            context.actorSelection("../requeststore") ! IsProcessed(request)
+            context.actorSelection("../requeststore") ! Process(request)
           }
         }
         case Failure(t) => log.error("Failed to dequeue CrawlRequest", t)
@@ -176,7 +151,7 @@ class RequestStoreActor(requestStore: RequestStore) extends Actor with ActorLogg
         case t => log.error("Failed to MarkProcessed {}", request, t)
       }
     }
-    case IsProcessed(request) => {
+    case Process(request) => {
       log.debug("Received IsProcessed for {}", request)
       requestStore.isProcessed(request, afterTs) onComplete {
         case Success(true) => log.debug("Skipping already processed {}", request)
