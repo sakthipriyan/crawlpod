@@ -26,7 +26,7 @@ class HttpActor(http: Http) extends Actor with ActorLogging {
           context.actorSelection("../rawstore") ! response
         }
         case Failure(t) => {
-          log.error("Failed to get response for {}", request, t)
+          log.error("Failed to get response for {} {}", request, t)
           context.actorSelection("../queue") ! Failed(request)
         }
       }
@@ -48,7 +48,7 @@ class ExtractActor extends Actor with ActorLogging {
             context.actorSelection("../jsonstore") ! JsonWrite(extract.documents)
         }
         case Failure(t) => {
-          log.error("Failed to extract CrawlRequest", t)
+          log.error("Failed to extract CrawlRequest {} {}", t)
           context.actorSelection("../controller") ! Tick
           context.actorSelection("../queue") ! Failed(response.request)
         }
@@ -77,7 +77,7 @@ class QueueActor(queue: Queue) extends Actor with ActorLogging {
     case e: Enqueue => {
       log.debug("Received {}", e)
       queue.enqueue(e.requests) onFailure {
-        case t => log.error("Failed to enqueue {}", e.requests, t)
+        case t => log.error("Failed to enqueue {} {}", e.requests, t)
       }
     }
     case Dequeue => {
@@ -88,14 +88,14 @@ class QueueActor(queue: Queue) extends Actor with ActorLogging {
             context.actorSelection("../requeststore") ! Process(request)
           }
         }
-        case Failure(t) => log.error("Failed to dequeue CrawlRequest", t)
+        case Failure(t) => log.error("Failed to dequeue CrawlRequest {}", t)
       }
     }
 
     case f: Failed => {
       log.debug("Received {}", f)
       queue.failed(f.request) onFailure {
-        case t => log.error("Failed to enqueue {}", f.request, t)
+        case t => log.error("Failed to enqueue {} {}", f.request, t)
       }
     }
   }
@@ -108,7 +108,7 @@ class RawStoreActor(rawStore: RawStore) extends Actor with ActorLogging {
     case response: CrawlResponse => {
       log.debug("Received {}", response)
       rawStore.put(response).onFailure {
-        case t => log.error("Failed to store {}", response, t)
+        case t => log.error("Failed to store {} {}", response, t)
       }
     }
     case request: CrawlRequest => {
@@ -118,7 +118,7 @@ class RawStoreActor(rawStore: RawStore) extends Actor with ActorLogging {
           case Some(response) => context.actorSelection("../extractor") ! response
           case None           => context.actorSelection("../http") ! request
         }
-        case Failure(t) => log.error("Failed to retrieve response for {}", request, t)
+        case Failure(t) => log.error("Failed to retrieve response for {} {}", request, t)
       }
     }
   }
@@ -128,9 +128,9 @@ class JsonStoreActor(jsonStore: JsonStore) extends Actor with ActorLogging {
   import scala.concurrent.ExecutionContext.Implicits.global
   def receive = {
     case w: JsonWrite => {
-      log.debug("Received {}", w)
+      log.debug("Received JsonWrite with {} jsons", w.list.size)
       jsonStore.write(w.list).onFailure {
-        case t => log.error("Failed to store json {}", w.list, t)
+        case t => log.error("Failed to store json {}, {}", w.list.size, t)
       }
     }
   }
@@ -142,18 +142,21 @@ class RequestStoreActor(requestStore: RequestStore) extends Actor with ActorLogg
     case MarkProcessed(request) => {
       log.debug("Received MarkProcessed for {}", request)
       requestStore.setProcessed(request) onFailure {
-        case t => log.error("Failed to MarkProcessed {}", request, t)
+        case t => log.error("Failed to MarkProcessed {} {}", request, t)
       }
     }
     case Process(request) => {
       log.debug("Received IsProcessed for {}", request)
       requestStore.isProcessed(request, afterTs) onComplete {
-        case Success(true) => log.debug("Skipping already processed {}", request)
+        case Success(true) => {
+          log.debug("Skipping already processed {}", request)
+          context.actorSelection("../controller") ! Tick
+        }
         case Success(false) => {
           val actor = if (isCacheEnabled && request.cache) "../rawstore" else "../http"
           context.actorSelection(actor) ! request
         }
-        case Failure(t) => log.error("Failed to retrieve response for {}", request, t)
+        case Failure(t) => log.error("Failed to retrieve response for {} {}", request, t)
       }
     }
   }
