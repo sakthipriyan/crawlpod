@@ -1,3 +1,2 @@
 # Crawlpod
-Source code of crawlpod.
-
+Web crawler framework developed using Akka actors with scalability on mind.
